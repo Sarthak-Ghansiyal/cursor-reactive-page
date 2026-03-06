@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cursor Reactive — Interactive Experience</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Syne+Mono&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0a0a0f;
+      --accent: #e8ff47;
+      --accent2: #ff4f7b;
+      --accent3: #47c8ff;
+      --text: #f0f0f0;
+      --muted: #444;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      cursor: none;
+    }
+
+    /* ── Custom Cursor ── */
+    #cursor-dot {
+      position: fixed; top: 0; left: 0; pointer-events: none; z-index: 9999;
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent);
+      transform: translate(-50%, -50%);
+      transition: width .15s, height .15s, background .2s;
+      mix-blend-mode: exclusion;
+    }
+    #cursor-ring {
+      position: fixed; top: 0; left: 0; pointer-events: none; z-index: 9998;
+      width: 40px; height: 40px; border-radius: 50%;
+      border: 1.5px solid rgba(232,255,71,0.5);
+      transform: translate(-50%, -50%);
+      transition: transform .08s ease-out, width .2s, height .2s, border-color .2s;
+      mix-blend-mode: exclusion;
+    }
+    body.hovering #cursor-dot { width: 14px; height: 14px; background: var(--accent2); }
+    body.hovering #cursor-ring { width: 60px; height: 60px; border-color: var(--accent2); }
+
+    /* ── Magnetic Glow ── */
+    #glow {
+      position: fixed; pointer-events: none; z-index: 0;
+      width: 600px; height: 600px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(232,255,71,0.07) 0%, transparent 70%);
+      transform: translate(-50%, -50%);
+      transition: transform .06s linear;
+    }
+
+    /* ── Grid of reactive tiles ── */
+    #grid {
+      position: fixed; inset: 0; z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(var(--cols), 1fr);
+      grid-template-rows: repeat(var(--rows), 1fr);
+    }
+    .tile {
+      border: 1px solid rgba(255,255,255,0.03);
+      transition: background .4s ease, border-color .3s;
+    }
+
+    /* ── Content ── */
+    #content {
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      pointer-events: none;
+      gap: 1.2rem;
+      padding: 2rem;
+    }
+
+    .label {
+      font-family: 'Syne Mono', monospace;
+      font-size: .7rem;
+      letter-spacing: .3em;
+      color: var(--accent);
+      opacity: 0;
+      animation: fadeUp .8s .2s forwards;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      font-size: clamp(2.8rem, 8vw, 7rem);
+      font-weight: 800;
+      line-height: .95;
+      text-align: center;
+      letter-spacing: -.03em;
+      opacity: 0;
+      animation: fadeUp .9s .4s forwards;
+    }
+    h1 span { color: var(--accent); }
+
+    .sub {
+      font-size: clamp(.85rem, 1.5vw, 1.1rem);
+      color: rgba(240,240,240,0.45);
+      text-align: center;
+      max-width: 480px;
+      line-height: 1.6;
+      opacity: 0;
+      animation: fadeUp .9s .65s forwards;
+    }
+
+    .pills {
+      display: flex; gap: .7rem; flex-wrap: wrap; justify-content: center;
+      pointer-events: all;
+      opacity: 0;
+      animation: fadeUp .9s .85s forwards;
+    }
+    .pill {
+      font-family: 'Syne Mono', monospace;
+      font-size: .72rem;
+      letter-spacing: .1em;
+      padding: .45rem 1.1rem;
+      border: 1px solid rgba(232,255,71,0.3);
+      border-radius: 999px;
+      color: var(--accent);
+      background: rgba(232,255,71,0.05);
+      cursor: none;
+      transition: background .25s, border-color .25s, transform .2s;
+    }
+    .pill:hover {
+      background: rgba(232,255,71,0.15);
+      border-color: var(--accent);
+      transform: scale(1.05);
+    }
+
+    /* ── Coords HUD ── */
+    #hud {
+      position: fixed; bottom: 2rem; right: 2rem;
+      font-family: 'Syne Mono', monospace;
+      font-size: .65rem;
+      color: var(--muted);
+      letter-spacing: .1em;
+      z-index: 20;
+      transition: color .3s;
+    }
+
+    /* ── Trailing particles ── */
+    .particle {
+      position: fixed; pointer-events: none; z-index: 8;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      animation: particleFade .7s ease-out forwards;
+    }
+    @keyframes particleFade {
+      0%   { opacity: .8; transform: translate(-50%,-50%) scale(1); }
+      100% { opacity: 0;  transform: translate(-50%,-50%) scale(0); }
+    }
+
+    /* ── Magnetic buttons ── */
+    .mag-btn {
+      pointer-events: all;
+      display: inline-block;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: .85rem;
+      letter-spacing: .08em;
+      padding: .9rem 2.4rem;
+      background: var(--accent);
+      color: #0a0a0f;
+      border: none;
+      border-radius: 4px;
+      cursor: none;
+      transition: transform .15s ease, box-shadow .2s;
+      opacity: 0;
+      animation: fadeUp .9s 1.05s forwards;
+    }
+    .mag-btn:hover {
+      box-shadow: 0 0 40px rgba(232,255,71,0.35);
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Corner decorations ── */
+    .corner {
+      position: fixed; z-index: 5; pointer-events: none;
+      width: 40px; height: 40px;
+      opacity: .25;
+    }
+    .corner svg { width: 100%; height: 100%; }
+    .corner.tl { top: 1.5rem; left: 1.5rem; }
+    .corner.tr { top: 1.5rem; right: 1.5rem; transform: rotate(90deg); }
+    .corner.bl { bottom: 1.5rem; left: 1.5rem; transform: rotate(-90deg); }
+    .corner.br { bottom: 1.5rem; right: 1.5rem; transform: rotate(180deg); }
+  </style>
+</head>
+<body>
+
+<!-- Cursors -->
+<div id="cursor-dot"></div>
+<div id="cursor-ring"></div>
+
+<!-- Mouse glow -->
+<div id="glow"></div>
+
+<!-- Reactive grid -->
+<div id="grid"></div>
+
+<!-- Corner brackets -->
+<div class="corner tl"><svg viewBox="0 0 40 40" fill="none" stroke="#e8ff47" stroke-width="2"><path d="M0 20 L0 0 L20 0"/></svg></div>
+<div class="corner tr"><svg viewBox="0 0 40 40" fill="none" stroke="#e8ff47" stroke-width="2"><path d="M0 20 L0 0 L20 0"/></svg></div>
+<div class="corner bl"><svg viewBox="0 0 40 40" fill="none" stroke="#e8ff47" stroke-width="2"><path d="M0 20 L0 0 L20 0"/></svg></div>
+<div class="corner br"><svg viewBox="0 0 40 40" fill="none" stroke="#e8ff47" stroke-width="2"><path d="M0 20 L0 0 L20 0"/></svg></div>
+
+<!-- Main content -->
+<div id="content">
+  <p class="label">cursor reactive experience</p>
+  <h1>Move your<br/><span>cursor.</span></h1>
+  <p class="sub">Every pixel reacts. Every tile wakes. Built with vanilla JavaScript — no libraries, no frameworks.</p>
+  <div class="pills">
+    <span class="pill">mousemove</span>
+    <span class="pill">CSS Variables</span>
+    <span class="pill">Magnetic UI</span>
+    <span class="pill">Particle Trail</span>
+  </div>
+  <button class="mag-btn" id="magBtn">View Source</button>
+</div>
+
+<!-- HUD -->
+<div id="hud">X: 000 &nbsp; Y: 000</div>
+
+<script>
+  // ── Setup ──────────────────────────────────────────────────────────────────
+  const dot   = document.getElementById('cursor-dot');
+  const ring  = document.getElementById('cursor-ring');
+  const glow  = document.getElementById('glow');
+  const grid  = document.getElementById('grid');
+  const hud   = document.getElementById('hud');
+  const magBtn = document.getElementById('magBtn');
+
+  let mouseX = 0, mouseY = 0;
+  let ringX  = 0, ringY  = 0;
+  let glowX  = 0, glowY  = 0;
+
+  // ── Build tile grid ────────────────────────────────────────────────────────
+  const TILE_SIZE = 80;
+  let cols, rows, tiles = [];
+
+  function buildGrid() {
+    cols = Math.ceil(window.innerWidth  / TILE_SIZE) + 1;
+    rows = Math.ceil(window.innerHeight / TILE_SIZE) + 1;
+    grid.style.setProperty('--cols', cols);
+    grid.style.setProperty('--rows', rows);
+    grid.innerHTML = '';
+    tiles = [];
+    for (let i = 0; i < cols * rows; i++) {
+      const t = document.createElement('div');
+      t.className = 'tile';
+      grid.appendChild(t);
+      tiles.push(t);
+    }
+  }
+  buildGrid();
+  window.addEventListener('resize', buildGrid);
+
+  // ── Color palette for tiles ────────────────────────────────────────────────
+  const COLORS = ['#e8ff47', '#ff4f7b', '#47c8ff', '#b47fff'];
+
+  function lightTilesNear(x, y) {
+    const col = Math.floor(x / TILE_SIZE);
+    const row = Math.floor(y / TILE_SIZE);
+    const radius = 3;
+
+    for (let dr = -radius; dr <= radius; dr++) {
+      for (let dc = -radius; dc <= radius; dc++) {
+        const c = col + dc, r = row + dr;
+        if (c < 0 || c >= cols || r < 0 || r >= rows) continue;
+        const dist = Math.sqrt(dc*dc + dr*dr);
+        if (dist > radius) continue;
+
+        const idx   = r * cols + c;
+        const tile  = tiles[idx];
+        const alpha = (1 - dist / radius) * 0.18;
+        const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+        tile.style.background = `${color}${Math.round(alpha * 255).toString(16).padStart(2,'0')}`;
+        tile.style.borderColor = `${color}33`;
+
+        clearTimeout(tile._t);
+        tile._t = setTimeout(() => {
+          tile.style.background = '';
+          tile.style.borderColor = '';
+        }, 600 + dist * 120);
+      }
+    }
+  }
+
+  // ── Particle trail ─────────────────────────────────────────────────────────
+  let particleThrottle = 0;
+  function spawnParticle(x, y) {
+    const now = Date.now();
+    if (now - particleThrottle < 40) return;
+    particleThrottle = now;
+
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const size = 3 + Math.random() * 5;
+    const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+    p.style.cssText = `
+      left:${x + (Math.random()-0.5)*12}px;
+      top:${y + (Math.random()-0.5)*12}px;
+      width:${size}px; height:${size}px;
+      background:${color};
+    `;
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 700);
+  }
+
+  // ── Magnetic button ────────────────────────────────────────────────────────
+  let btnRect = magBtn.getBoundingClientRect();
+  window.addEventListener('resize', () => { btnRect = magBtn.getBoundingClientRect(); });
+
+  function applyMagnet(x, y) {
+    const cx = btnRect.left + btnRect.width  / 2;
+    const cy = btnRect.top  + btnRect.height / 2;
+    const dx = x - cx, dy = y - cy;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const threshold = 110;
+
+    if (dist < threshold) {
+      const pull = (1 - dist / threshold) * 0.4;
+      magBtn.style.transform = `translate(${dx * pull}px, ${dy * pull}px)`;
+      document.body.classList.add('hovering');
+    } else {
+      magBtn.style.transform = '';
+      document.body.classList.remove('hovering');
+    }
+  }
+
+  // ── Mouse events ───────────────────────────────────────────────────────────
+  document.addEventListener('mousemove', e => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+
+    dot.style.left = mouseX + 'px';
+    dot.style.top  = mouseY + 'px';
+
+    hud.textContent = `X: ${String(mouseX).padStart(4,' ')}   Y: ${String(mouseY).padStart(4,' ')}`;
+
+    lightTilesNear(mouseX, mouseY);
+    spawnParticle(mouseX, mouseY);
+    applyMagnet(mouseX, mouseY);
+    btnRect = magBtn.getBoundingClientRect();
+  });
+
+  // Smooth ring & glow follow
+  function animate() {
+    ringX += (mouseX - ringX) * 0.12;
+    ringY += (mouseY - ringY) * 0.12;
+    glowX += (mouseX - glowX) * 0.05;
+    glowY += (mouseY - glowY) * 0.05;
+
+    ring.style.left = ringX + 'px';
+    ring.style.top  = ringY + 'px';
+    glow.style.left = glowX + 'px';
+    glow.style.top  = glowY + 'px';
+
+    requestAnimationFrame(animate);
+  }
+  animate();
+
+  // ── Hover state for pills ──────────────────────────────────────────────────
+  document.querySelectorAll('.pill, .mag-btn').forEach(el => {
+    el.addEventListener('mouseenter', () => document.body.classList.add('hovering'));
+    el.addEventListener('mouseleave', () => document.body.classList.remove('hovering'));
+  });
+
+  // ── Button click ───────────────────────────────────────────────────────────
+  magBtn.addEventListener('click', () => {
+    window.open('https://github.com/', '_blank');
+  });
+</script>
+</body>
+</html>
